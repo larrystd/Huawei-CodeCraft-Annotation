@@ -19,11 +19,11 @@ import moxing as mox
 import logging
 import sys
 
-mox.file.shift('os', 'mox')
-sys.path.insert(0, "../../python")
-sys.setrecursionlimit(1000000)
+mox.file.shift('os', 'mox')     # OS的API映射到mox.file
+sys.path.insert(0, "../../python")  # 搜索顺序
+sys.setrecursionlimit(1000000)  # 手动设置递归深度
 random.seed(2019)
-torch.manual_seed(2019)
+torch.manual_seed(2019)     # 设置随机数种子之后，每次训练参数会有特点的随机
 
 num_classes = 43
 num_labels = 9
@@ -31,7 +31,7 @@ index = {"深": 0, "秦": 1, "京": 2, "海": 3, "成": 4, "南": 5, "杭": 6, "
             "0": 9, "1": 10, "2": 11, "3": 12, "4": 13,"5": 14, "6": 15, "7": 16, "8": 17, "9": 18,
             "A": 19,"B": 20, "C": 21, "D": 22, "E": 23, "F": 24, "G": 25, "H": 26, "J": 27, "K": 28,
             "L": 29, "M": 30, "N": 31, "P": 32, "Q": 33, "R": 34, "S": 35, "T": 36, "U": 37, "V": 38,
-            "W": 39, "X": 40, "Y": 41, "Z": 42};
+            "W": 39, "X": 40, "Y": 41, "Z": 42};    # 每个字符对应的索引，相当于打标签了
 chars = ["深", "秦", "京", "海", "成", "南", "杭", "苏", "松", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A",
              "B", "C", "D", "E", "F", "G", "H", "J", "K", "L", "M", "N", "P", "Q", "R", "S", "T", "U", "V", "W", "X",
              "Y", "Z"];
@@ -39,14 +39,14 @@ chars = ["深", "秦", "京", "海", "成", "南", "杭", "苏", "松", "0", "1"
 class GaussBulr(object):
     def __init__(self, radius=2):
         self.radius = radius
-    def __call__(self,img):
-        return img.filter(ImageFilter.GaussianBlur(random.randint(1, self.radius)))
+    def __call__(self,img):  # 实例像函数一样对待
+        return img.filter(ImageFilter.GaussianBlur(random.randint(1, self.radius)))  # Gaussian filter
 
 class AddGaussNoise(object):
     def __init__(self, mean=0, std=2):
         self.mean = mean
         self.std = std
-    def __call__(self,img):
+    def __call__(self,img):     # 增加高斯噪声
         img = cv2.cvtColor(np.asarray(img),cv2.COLOR_RGB2BGR)
         noise = np.zeros(img.shape, dtype=np.uint8)
         mean = random.random() * self.mean
@@ -56,8 +56,8 @@ class AddGaussNoise(object):
         img = Image.fromarray(cv2.cvtColor(img,cv2.COLOR_BGR2RGB))
         return img
 
-class LicensePlateDataset(Dataset):
-    def __init__(self, root_dir, transform=None, train=True, test=False):
+class LicensePlateDataset(Dataset):     # pytorch Dataset类
+    def __init__(self, root_dir, transform=None, train=True, test=False):   # 得到data
         self.root_dir = root_dir
         self.data = open(os.path.join(root_dir, 'train-data-label.txt'), encoding='utf-8').readlines()
         #normalize = transforms.Normalize(mean=[0.315, 0.351, 0.474], std=[0.232, 0.228, 0.181])
@@ -96,17 +96,17 @@ class LicensePlateDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def __getitem__(self, idx):
-        img_name = os.path.join(self.root_dir, 'train-data', self.data[idx][1])
+    def __getitem__(self, idx):     # 从data根据idx,中获取样本对，也就是data:label
+        img_name = os.path.join(self.root_dir, 'train-data', self.data[idx][1])     # 图像名
         with Image.open(img_name) as img:
-            image = img.convert('RGB')
+            image = img.convert('RGB')  # 转成RGB
         image = self.transform(image)
-        label = np.array([index[i] for i in self.data[idx][0]])
+        label = np.array([index[i] for i in self.data[idx][0]]) # index是车牌对应的索引
         label = torch.from_numpy(label)
         return image, label
 
 def accuracy(output, target):
-    #batch_size * num_class * num_label
+    #hitL output与target相等的个数
     #bath_size * num_label
     hit = 0
     count = 0
@@ -128,7 +128,7 @@ def validate(val_loader, model, criterion):
             target = target.cuda()
             output = model(input)
             output = output.view(-1, num_classes, num_labels)
-            loss = criterion(output, target)
+            loss = criterion(output, target)  # criterion 损失函数
             losses += loss.item()
             hit, count = accuracy(output, target)
             total_hit += hit
@@ -144,14 +144,16 @@ def train(args, my_data):
     batch_size = 16
     epochs = 600
     model = models.resnet34(num_classes=num_classes*num_labels)
+
     model.avgpool = nn.AdaptiveAvgPool2d((1, 1))
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr)
     #optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=0.00001)
     #scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[60], gamma=0.1)
     #scheduler_update = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=10.0)
-    model.cuda()
+    model.cuda()        # 模型迁移实际是数据参数的迁移
     criterion.cuda()
+
     train_dataset = LicensePlateDataset(my_data)
     val_dataset = LicensePlateDataset(my_data, train=False)
     train_loader = torch.utils.data.DataLoader(
@@ -175,10 +177,10 @@ def train(args, my_data):
             input = input.cuda()
             target = target.cuda()
             output = model(input)
-            output = output.view(-1, num_classes, num_labels)
-            loss = criterion(output, target)
+            output = output.view(-1, num_classes, num_labels)  # 形成num_classes * num_labels的判定矩阵
+            loss = criterion(output, target) # 都在gpu中运算呢
             #print(target[0])
-            optimizer.zero_grad()
+            optimizer.zero_grad()   # 梯度初始化为0
             loss.backward()
             optimizer.step()
             loss = loss.item()
